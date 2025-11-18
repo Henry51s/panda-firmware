@@ -97,7 +97,6 @@ enum class OversamplingSettings : uint8_t {
 
 };
 
-#if 0
 class MCP3561 {
   private:
     uint8_t chip_select_pin;
@@ -165,7 +164,8 @@ class MCP3561 {
     void printRegisters(void);
     void trigger(void);
     float getOutput(void);
-    void writeRegisterDefaults(void);
+    bool getInterrupt(void);
+    void initialize(void);
     void setVREF(float vref_ = 1.25f);
 
     void setSettings(SPISettings settings);
@@ -177,7 +177,6 @@ class MCP3561 {
 
     
 };
-#endif
 
 // uint32_t MCP3561::data_counter;
 // uint32_t MCP3561::data_points_to_sample = 1;

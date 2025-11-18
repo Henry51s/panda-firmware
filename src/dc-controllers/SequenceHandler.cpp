@@ -72,12 +72,12 @@ void SequenceHandler::setCommand(char* command) {
         sequenceArr[0].state = state;
         sequenceArr[0].delay = delay;
 
-        Serial.print("Token "); Serial.print("0"); Serial.print(": "); Serial.println(token);
-        Serial.print("  ["); Serial.print("0"); Serial.print("] ");
-        Serial.print("chan=");  Serial.print(sequenceArr[0].channel);
+        Serial2.print("Token "); Serial2.print("0"); Serial2.print(": "); Serial2.println(token);
+        Serial2.print("  ["); Serial2.print("0"); Serial2.print("] ");
+        Serial2.print("chan=");  Serial2.print(sequenceArr[0].channel);
         // Serial.print(", pin="); Serial.print(dcChannels[solenoidChannels[i] - 1]);
-        Serial.print(", state=");  Serial.print(sequenceArr[0].state);
-        Serial.print(", duration=");  Serial.println(sequenceArr[0].delay);
+        Serial2.print(", state=");  Serial2.print(sequenceArr[0].state);
+        Serial2.print(", duration=");  Serial2.println(sequenceArr[0].delay);
     }
 
     for (int i = 1; i < numCommands; i++) {
@@ -154,14 +154,14 @@ void SequenceHandler::update() {
         // digitalWrite(dcChannels[solenoidChannels[currentIndex] - 1], solenoidStates[currentIndex]);
         channelArr[sequenceArr[currentIndex].channel - 1].setState(sequenceArr[currentIndex].state);
 
-        Serial.print("Firing idx=");
-        Serial.print(currentIndex);
-        Serial.print(" chan=");
-        Serial.print(sequenceArr[currentIndex].channel);
-        Serial.print(" state=");
-        Serial.println(sequenceArr[currentIndex].state);
-        Serial.print(" duration=");
-        Serial.println(sequenceArr[currentIndex].delay);
+        Serial2.print("Firing idx=");
+        Serial2.print(currentIndex);
+        Serial2.print(" chan=");
+        Serial2.print(sequenceArr[currentIndex].channel);
+        Serial2.print(" state=");
+        Serial2.println(sequenceArr[currentIndex].state);
+        Serial2.print(" duration=");
+        Serial2.println(sequenceArr[currentIndex].delay);
 
         sTimer = 0;
         inDelay = true;

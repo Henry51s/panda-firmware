@@ -1,7 +1,7 @@
-#if 0
 #include "SScanner.hpp"
 
 void SScanner::setup() {
+
 
     // Initializing multiplexer and irq pins
     for (int i = 0; i < 4; i++) {
@@ -9,19 +9,16 @@ void SScanner::setup() {
         digitalWrite(sMux[i], LOW);
     }
 
-    pinMode(sADCPins.cs, OUTPUT);
-    pinMode(sADCPins.irq, INPUT);
+    pinMode(csPin, OUTPUT);
+    digitalWrite(csPin, HIGH);
+    pinMode(irqPin, INPUT_PULLUP);
 
-    pinMode(sADCPins.miso, INPUT);
-    pinMode(sADCPins.mosi, OUTPUT);
+    // pinMode(sADCPins.miso, INPUT);
+    // pinMode(sADCPins.mosi, OUTPUT);
 
     // Initializing ADC
-
     adc.setSettings(SPISettingsDefault);
-    delay(100);
-    adc.writeRegisterDefaults(); // Called twice to ensure operation after power-cycling
-    delay(100);
-    adc.writeRegisterDefaults();
+    adc.initialize();
     adc.setGain(GainSettings::GAIN_1);
     adc.setMuxInputs(MuxSettings::CH0, MuxSettings::AGND);
     adc.setVREF(3.3f);
@@ -57,11 +54,16 @@ void SScanner::update() {
         // wait for T_CONV_US, then read the ADC output into the respective samples index
         // Increment channel (If it's at 15, wrap back to zero, then we have a full sample array and we're good to process)
         // return to IDLE
-        if (timer >= T_CONV_US) {
+        // if (timer >= T_CONV_US) {
+        if (adc.getInterrupt() && !digitalRead(irqPin)) {
           // Read ADC output
           // Set samples[channel] to what the ADC outputs
           float res = adc.getOutput();
-          adcOutput[channel] = res;
+          sData[channel] = res * sConstant;
+          // Serial.print("Solenoid channel :");
+          // Serial.print(channel + 1);
+          // Serial.print(" | Raw reading: ");
+          // Serial.println(res, 8);
 
           // if (bankPtr == 0) {
           //   Serial.print("S Channel: ");
@@ -74,8 +76,7 @@ void SScanner::update() {
           //   Serial.print(channel + 1);
           //   Serial.print(" | Raw: ");
           //   Serial.println(res, HEX);
-          // }
-          // else if (bankPtr == 2) {
+          // }          // else if (bankPtr == 2) {
           //   Serial.print("LCTC Channel: ");
           //   Serial.print(channel + 1);
           //   Serial.print(" | Raw: ");
@@ -93,5 +94,8 @@ void SScanner::update() {
         break;
     }
   }
-  #endif
+
+  void SScanner::getSOutput(float* out) {
+    for (int i = 0; i < NUM_DC_CHANNELS; i++) {out[i] = sData[i];}
+  }
 

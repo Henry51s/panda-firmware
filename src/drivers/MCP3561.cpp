@@ -1,4 +1,3 @@
-#if 0
 #include "MCP3561.hpp"
 #include <SPI.h> // Assuming this is needed for SPISettings and SPI object
 
@@ -129,7 +128,7 @@ void MCP3561::trigger(void) {
   writeFastCommand(FAST_CMD_START_RESTART);
 }
 
-void MCP3561::writeRegisterDefaults(void) {
+void MCP3561::initialize(void) {
 
   // First write to CONFIG0 register
   uint8_t command_byte = CONFIG0_WRITE;
@@ -188,6 +187,12 @@ void MCP3561::writeRegisterDefaults(void) {
   // spi.endTransaction();
 
   // writeRegister(0x06, 0b00011000);
+}
+
+bool MCP3561::getInterrupt(void) {
+  uint8_t irqReg = readRegister(0x5);
+  // return !(irqReg & (1 << 6));
+  return ((irqReg & 0x40) == 0);
 }
 
 
@@ -355,5 +360,3 @@ void MCP3561::printRegisters(void) {
   Serial.println(scan_data, BIN);
   Serial.println("-----------------------------");
 }
-
-#endif

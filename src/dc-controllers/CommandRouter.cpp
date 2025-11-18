@@ -32,6 +32,11 @@ void CommandRouter::update() {
       // digitalWrite(dcChannels[channel - 1], state);
       if (channel >= 1 && channel <= NUM_DC_CHANNELS) {
         sh.channelArr[channel - 1].setState(state);
+        Serial2.print("Solenoid Command: ");
+        Serial2.print(channel);
+        Serial2.print(" | ");
+        Serial2.println(state);
+        
         Serial.print("Solenoid Command: ");
         Serial.print(channel);
         Serial.print(" | ");
@@ -42,14 +47,14 @@ void CommandRouter::update() {
 
     else if (idChar == 'a') {
       // Arm
-      ac.arm();
+      ac.setState(ArmingController::ARM);
       Serial.println("Arming!");
 
     }
 
     else if (idChar == 'r') {
       // Disarm
-      ac.disarm();
+      ac.setState(ArmingController::DISARM);
       Serial.println("Disarming!");
     }
 

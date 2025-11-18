@@ -5,12 +5,14 @@
 #include "hardware-configs/pins.hpp"
 
 // #include "scanners/Scanner.hpp"
-// #include "scanners/FScanner.hpp" // Fluids DAQ
-// #include "scanners/SScanner.hpp" // Solenoid current DAQ
+#include "scanners/FScanner.hpp" // Fluids DAQ
+#include "scanners/SScanner.hpp" // Solenoid current DAQ
 
 #include "telemetry/TelemetryHandler.hpp"
 #include "dc-controllers/SequenceHandler.hpp"
 #include "board-functions/ArmingController.hpp"
+
+#include "drivers/MCP9802A0.hpp" // Temperature sensors
 
 /* 
 TODO:
@@ -45,25 +47,12 @@ TODO:
  * 
  */
 
-// Cursed UART pin config
-// FlexSerial UART1(UART1Pins.rx, UART1Pins.tx); // RX, TX
-// FlexSerial UART2(UART2Pins.rx, UART2Pins.tx); // RX, TX
-
-
-
-// MCP3561 sADC(sADCPins.cs, SPI, SPISettingsDefault); // Solenoid current ADC
-// MCP3561 adc(2, -1, 0, &SPI1, 26, 1, 27);
-
-// void mcp_wrapper() { adc.IRQ_handler(); }
-// FScanner fScanner(adc);
-
-
-
-TelemetryHandler th(Serial2, 256);
+TelemetryHandler th(Serial2, 1024);
 SequenceHandler sh;
 ArmingController ac(PIN_ARM, PIN_DISARM);
 
-
+SScanner sScanner(sADCPins.cs, sADCPins.irq, SPI, SPISettingsDefault);
+FScanner fScanner(ptADCPins.cs, ptADCPins.irq, SPI1, SPISettingsDefault);
 
 void setup() {
   // put your setup code here, to run once:
@@ -75,47 +64,26 @@ void setup() {
 
   Serial.begin(SERIAL_BAUD_RATE); // Debugging via serial monitor
 
-  
-  // while(!Serial);
+  SPI.begin();
+  SPI.setClockDivider(4);
 
-  // if (!adc.begin()) {Serial.println("ADC Initialization failed..."); while(1);}
+  SPI1.begin();
+  SPI1.setClockDivider(4);
 
-  // adc.enableScanChannel(MCP_CH1);
-  // adc.startContinuous();
-
-  // Serial.println("ADC Initialized");
-
-
-
-
-  // SPI.begin();
-  // SPI.setClockDivider(4);
-  
-  // SPI.setMISO(sADCPins.miso);
-  // SPI.setMOSI(sADCPins.mosi);
-  // SPI.setSCK(sADCPins.sck);
-
-
-  // SPI1.begin();
-  // SPI1.setClockDivider(4);
-
-  // SPI1.setMISO(ptADCPins.miso);
-  // SPI1.setMOSI(ptADCPins.mosi);
-  // SPI1.setSCK(ptADCPins.sck);
-
-  // fScanner.setup();
-  // I2CScanner();
-  // Wire2.begin();
-
-  // for (int i = 0; i < NUM_DC_CHANNELS; i++) {
-  //   pinMode(PINS_DC_CHANNELS[i], OUTPUT);
-  // }
-
-
+  Wire2.begin();
 
   // Call scanner setup()'s here
   sh.setup();
-  ac.setup();
+  // ac.setup();
+  sScanner.setup();
+  fScanner.setup();
+
+  pinMode(PIN_DISARM, OUTPUT);
+  pinMode(PIN_ARM, OUTPUT);
+
+  digitalWrite(PIN_DISARM, HIGH);
+
+  Serial2.println("Panda Initialized!");
 
 }
 
@@ -127,6 +95,7 @@ void loop() {
   th.poll();
   if (th.isPacketReady()) {
     char* rxPacket = th.takePacket();
+    Serial.println(rxPacket);
     idChar = rxPacket[0];
     // Feed rxPacket into command handler
     if (idChar == 's') {
@@ -150,40 +119,70 @@ void loop() {
       // digitalWrite(dcChannels[channel - 1], state);
       if (channel >= 1 && channel <= NUM_DC_CHANNELS) {
         sh.channelArr[channel - 1].setState(state);
-        Serial.print("Solenoid Command: ");
-        Serial.print(channel);
-        Serial.print(" | ");
-        Serial.println(state);
+        Serial2.print("Solenoid Command: ");
+        Serial2.print(channel);
+        Serial2.print(" | ");
+        Serial2.println(state);
       }
 
     }
 
     else if (idChar == 'a') {
       // Arm
-      ac.arm();
-      Serial.println("Arming!");
+      // ac.setState(ArmingController::ARM);
+
+      digitalWrite(PIN_DISARM, LOW);
+      digitalWrite(PIN_ARM, HIGH);
+      Serial2.println("Arming!");
 
     }
 
     else if (idChar == 'r') {
       // Disarm
-      ac.disarm();
+      // ac.setState(ArmingController::DISARM);
+      digitalWrite(PIN_ARM, LOW);
+      digitalWrite(PIN_DISARM, HIGH);
       Serial.println("Disarming!");
     }
 
     else if (idChar == 'f') {
       Serial.println(rxPacket);
       sh.execute(true);
+      Serial2.println("Firing sequence!");
     }
 
     // Resetting all incoming buffers
-    memset(rxPacket, 0, sizeof(rxPacket));
+    size_t n = strnlen(rxPacket, 256);   // your rxBuf capacity
+    memset(rxPacket, 0, n);
+    // memset(rxPacket, 0, sizeof(rxPacket));
     // packetReady = false;
   }
 
+  // ac.update();
   sh.update();
-  ac.update();
 
+
+  // ========== DAQ ==========
+  sScanner.update();
+  fScanner.update();
+
+  float sData[NUM_DC_CHANNELS] = {0}, lctcData[NUM_LC_CHANNELS + NUM_TC_CHANNELS];
+  sScanner.getSOutput(sData);
+  fScanner.getLCTCOutput(lctcData);
+
+  char sPacket[512], lctcPacket[512];
+
+  th.toCSVRow(sData, S_IDENTIFIER, NUM_DC_CHANNELS, sPacket, 512, 5);
+  th.toCSVRow(lctcData, LCTC_IDENTIFIER, NUM_TC_CHANNELS + NUM_LC_CHANNELS, lctcPacket, 512, 5);
+
+  // uint32_t current = millis();
+  Serial2.print(lctcPacket);
+  // Serial.print(lctcPacket);
+  Serial2.print(sPacket);
+
+  // uint32_t tTime = millis() - current;
+  // Serial.print("Transmission time: ");
+  // Serial.println(tTime);
 }
 
 

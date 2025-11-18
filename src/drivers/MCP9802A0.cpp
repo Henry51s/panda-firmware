@@ -6,7 +6,7 @@
 #define REG_HYST 0b10
 #define REG_LIMIT 0b11
 
-void MCP9802A0::configureTempSensor() {
+void MCP9802A0::initialize() {
   uint8_t cmd = 0b01100000;
   Wire2.beginTransmission(DEV_ADDR);
   Wire2.write(REG_CONFIG);
@@ -14,7 +14,7 @@ void MCP9802A0::configureTempSensor() {
   Wire2.endTransmission();
 }
 
-float MCP9802A0::getBoardTemp() {
+float MCP9802A0::getTemp() {
   uint8_t buffer_temperature[2];
   Wire2.beginTransmission(DEV_ADDR);
   Wire2.write(REG_TEMP_DATA);

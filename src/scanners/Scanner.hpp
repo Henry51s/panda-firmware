@@ -1,7 +1,6 @@
 #pragma once
 #include <Arduino.h>
-// #include "drivers/MCP3561.hpp"
-#include "drivers/MCP3x6x.h"
+#include "drivers/MCP3561.hpp"
 #include "hardware-configs/BoardConfig.hpp"
 #include "hardware-configs/pins.hpp"
 

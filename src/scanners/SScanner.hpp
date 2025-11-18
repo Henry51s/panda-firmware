@@ -1,4 +1,3 @@
-#if 0
 #pragma once
 
 #include "Scanner.hpp"
@@ -8,7 +7,7 @@ class SScanner : public Scanner {
 
     private:
 
-    MCP3561 &adc;
+    MCP3561 adc;
     MuxSettings adcCh = MuxSettings::CH0;
 
     State state = IDLE;
@@ -16,16 +15,21 @@ class SScanner : public Scanner {
     uint8_t channel = 0;
     elapsedMicros timer;
 
+    SPIClass& spiBus;
+    SPISettings settings;
+
+    uint8_t irqPin, csPin;
+
     public:
 
-    float adcOutput[NUM_DC_CHANNELS] = {0};
+    float sData[NUM_DC_CHANNELS] = {0};
 
-    SScanner(MCP3561 &adc_) : adc(adc_) {}
+    SScanner(uint8_t csPin_, uint8_t irqPin_, SPIClass& spiBus_, SPISettings settings_) : csPin(csPin_), irqPin(irqPin_), spiBus(spiBus_), settings(settings_), adc(csPin_, spiBus_, settings_, 3.3) {}
+    
 
+    void getSOutput(float* out);
     void setup() override;
     void update() override;
 
 
 };
-
-#endif

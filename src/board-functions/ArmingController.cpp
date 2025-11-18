@@ -5,64 +5,67 @@ void ArmingController::setup() {
     pinMode(armPin, OUTPUT);
     pinMode(disarmPin, OUTPUT);
 
-    activeLine = NONE;
+    state = DISARM;
 
     // Optional pulse to disarm
+    digitalWrite(disarmPin, HIGH);
+    delay(500);
+    digitalWrite(disarmPin, LOW);
+
+    // digitalWrite(armPin, LOW);
+    // digitalWrite(disarmPin, LOW);
+
+    phase = IDLE;
+}
+
+ArmingController::Result ArmingController::setState(State state_) {
+    if (phase != IDLE) {return Result::IGNORED;}
+
     digitalWrite(armPin, LOW);
     digitalWrite(disarmPin, LOW);
 
-    active = false;
-}
+    justChanged = true;
 
-// void ArmingController::setState(State state_) {
-//     state = state_;
-//     timer = 0;
-// }
 
-void ArmingController::start(State s) {
-
-    cancel();
-
-    digitalWrite(armPin, LOW);
-    digitalWrite(disarmPin, LOW);
-
-    digitalWrite((s == ARM) ? armPin : disarmPin, HIGH);
-
-    activeLine = (s == ARM) ? LINE_ARM : LINE_DISARM;
-
-    timer = 0;
-    active = true;
-}
-
-void ArmingController::cancel() {
-    if (!active) {return;}
-
-    switch(activeLine) {
-
-        default: break;
-
-        case LINE_ARM:    digitalWrite(armPin, LOW);    break;
-        case LINE_DISARM: digitalWrite(disarmPin, LOW); break;
-
-    }
-
-    activeLine = NONE;
-    active = false;
-
+    Serial.println("Changing State!");
+    phase = IN_PULSE;
+    state = state_;
+    pulseTimer = 0;
+    return Result::ACCEPTED;
 }
 
 void ArmingController::update() {
-    if (!active) {return;}
-    if (timer > PULSE_DURATION) {
-        active = false;
-        digitalWrite((state == ARM) ? armPin : disarmPin, LOW);
+
+    switch (phase) {
+        case IDLE:
+        // Serial.println("Idling...");
+        break;
+
+        case IN_PULSE:
+        // Serial.println("In pulse...");
+        if (justChanged) {
+              digitalWrite((state == ARM) ? armPin : disarmPin, HIGH);
+              justChanged = false;
+        }
+        if (pulseTimer >= pulseTime) {
+            Serial.println("Pulse done!");
+
+            digitalWrite((state == ARM) ? armPin : disarmPin, LOW);
+            waitTimer = 0;
+            phase = WAITING;
+        }
+        break;
+
+        case WAITING:
+        // Serial.println("waiting...");
+        digitalWrite(armPin, LOW);
+        digitalWrite(disarmPin, LOW);
+        if (waitTimer >= waitTime) {
+            Serial.println("Wait done!");
+            phase = IDLE;
+        }
+        break;
+
     }
-}
 
-void ArmingController::arm() {
-    start(ARM);
-}
-
-void ArmingController::disarm() {
-    start(DISARM);
 }
