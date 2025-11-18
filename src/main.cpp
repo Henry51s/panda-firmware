@@ -143,12 +143,32 @@ void loop() {
       digitalWrite(PIN_ARM, LOW);
       digitalWrite(PIN_DISARM, HIGH);
       Serial.println("Disarming!");
+    sh.cancelExecution();
+    sh.setAllChannelsOff();
+    Serial2.println("SEQ_ABORT: Outputs de-energized");
+    if (sh.hasSequence()) {
+      Serial2.print("SEQ_READY:");
+      Serial2.println(sh.getLastCommand());
+    }
     }
 
     else if (idChar == 'f') {
-      Serial.println(rxPacket);
+    Serial.println(rxPacket);
+    if (!sh.hasSequence()) {
+      Serial2.println("SEQ_ERROR: No sequence loaded");
+    } else {
+      Serial2.print("SEQ_EXEC_START:count=");
+      Serial2.print(sh.getNumCommands());
+      const char* lastCmd = sh.getLastCommand();
+      if (lastCmd && lastCmd[0] != '\0') {
+        Serial2.print(",raw=");
+        Serial2.println(lastCmd);
+      } else {
+        Serial2.println();
+      }
       sh.execute(true);
       Serial2.println("Firing sequence!");
+    }
     }
 
     // Resetting all incoming buffers

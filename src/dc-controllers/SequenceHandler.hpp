@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <elapsedMillis.h>
 #include "hardware-configs/BoardConfig.hpp"
 #include "hardware-configs/pins.hpp"
@@ -31,8 +32,14 @@ class SequenceHandler {
     void resetCommand(void);
     bool pollCommand(void);
     void execute(bool sequenceState);
+    void cancelExecution(void);
+    void setAllChannelsOff(void);
 
     void printCurrentCommand(void);
+
+    bool hasSequence(void) const { return numCommands > 0; }
+    int getNumCommands(void) const { return numCommands; }
+    const char* getLastCommand(void) const { return lastCommandValid ? lastCommand : ""; }
 
     DCChannel channelArr[NUM_DC_CHANNELS];
 
@@ -45,8 +52,10 @@ class SequenceHandler {
 
     bool isActive = false;
     bool inDelay = false;
+    bool lastCommandValid = false;
 
     SequenceItem sequenceArr[NUM_MAX_COMMANDS];
+    char lastCommand[256] = {0};
 
 
     // int solenoidChannels[MAX_NUM_COMMANDS];
