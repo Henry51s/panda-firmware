@@ -1,4 +1,5 @@
 #include "dc-controllers/SequenceHandler.hpp"
+#include <cstring>
 
 void SequenceHandler::setup() {
     for (int i = 0; i < NUM_DC_CHANNELS; i++) {
@@ -12,6 +13,10 @@ void SequenceHandler::setup() {
 
 void SequenceHandler::resetCommand() {
     memset(sequenceArr, 0, sizeof(sequenceArr));
+    numCommands = 0;
+    currentIndex = 0;
+    inDelay = false;
+    isActive = false;
 }
 
 void SequenceHandler::printCurrentCommand(void) {
@@ -51,9 +56,19 @@ void SequenceHandler::setCommand(char* command) {
     sTimer         = 0;
 
     resetCommand();
+    lastCommandValid = false;
+    lastCommand[0] = '\0';
+
+    char original[256];
+    strncpy(original, command, sizeof(original) - 1);
+    original[sizeof(original) - 1] = '\0';
+    size_t origLen = strlen(original);
+    while (origLen > 0 && (original[origLen - 1] == '\n' || original[origLen - 1] == '\r')) {
+        original[--origLen] = '\0';
+    }
 
     char buf[256];
-    strcpy(buf, command);
+    strncpy(buf, original, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
 
     size_t lenCommand = strlen(command);
@@ -72,30 +87,43 @@ void SequenceHandler::setCommand(char* command) {
         sequenceArr[0].state = state;
         sequenceArr[0].delay = delay;
 
-        Serial2.print("Token "); Serial2.print("0"); Serial2.print(": "); Serial2.println(token);
-        Serial2.print("  ["); Serial2.print("0"); Serial2.print("] ");
-        Serial2.print("chan=");  Serial2.print(sequenceArr[0].channel);
-        // Serial.print(", pin="); Serial.print(dcChannels[solenoidChannels[i] - 1]);
-        Serial2.print(", state=");  Serial2.print(sequenceArr[0].state);
-        Serial2.print(", duration=");  Serial2.println(sequenceArr[0].delay);
+        Serial2.print("SEQ_TOKEN idx=0");
+        Serial2.print(" chan=");
+        Serial2.print(sequenceArr[0].channel);
+        Serial2.print(" state=");
+        Serial2.print(sequenceArr[0].state ? "ON" : "OFF");
+        Serial2.print(" duration=");
+        Serial2.println(sequenceArr[0].delay);
     }
 
     for (int i = 1; i < numCommands; i++) {
         token = strtok(nullptr, ",");
-        Serial.print("Token "); Serial.print(i); Serial.print(": "); Serial.println(token);
         if (token && sscanf(token + 1, "%1x%1u.%5u", &channel, &state, &delay) == 3) {
             sequenceArr[i].channel = channel;
             sequenceArr[i].state = state;
             sequenceArr[i].delay = delay;
 
-            Serial.print("  ["); Serial.print(i); Serial.print("] ");
-            Serial.print("chan=");  Serial.print(sequenceArr[i].channel);
-            // Serial.print(", pin="); Serial.print(dcChannels[solenoidChannels[i] - 1]);
-            Serial.print(", state=");  Serial.print(sequenceArr[i].state);
-            Serial.print(", duration=");  Serial.println(sequenceArr[i].delay);
-
-
+            Serial2.print("SEQ_TOKEN idx=");
+            Serial2.print(i);
+            Serial2.print(" chan=");
+            Serial2.print(sequenceArr[i].channel);
+            Serial2.print(" state=");
+            Serial2.print(sequenceArr[i].state ? "ON" : "OFF");
+            Serial2.print(" duration=");
+            Serial2.println(sequenceArr[i].delay);
         }
+    }
+
+    if (numCommands > 0) {
+        strncpy(lastCommand, original, sizeof(lastCommand) - 1);
+        lastCommand[sizeof(lastCommand) - 1] = '\0';
+        lastCommandValid = true;
+        Serial2.print("SEQ_ACK:count=");
+        Serial2.print(numCommands);
+        Serial2.print(",raw=");
+        Serial2.println(lastCommand);
+    } else {
+        Serial2.println("SEQ_ERROR: Failed to parse sequence");
     }
 
 
@@ -129,6 +157,10 @@ void SequenceHandler::setCommand(char* command) {
 
 void SequenceHandler::execute(bool sequenceState) {
     if (sequenceState == true) {
+        if (numCommands == 0) {
+            Serial2.println("SEQ_ERROR: Execute requested with no commands");
+            return;
+        }
         isActive = true;
         // sTimer = solenoidDelays[0] + 1;
         sTimer = 0;
@@ -136,6 +168,18 @@ void SequenceHandler::execute(bool sequenceState) {
     }
     else {
         isActive = false;
+    }
+}
+
+void SequenceHandler::cancelExecution(void) {
+    isActive = false;
+    inDelay = false;
+    currentIndex = 0;
+}
+
+void SequenceHandler::setAllChannelsOff(void) {
+    for (int i = 0; i < NUM_DC_CHANNELS; i++) {
+        channelArr[i].setState(false);
     }
 }
 
@@ -151,16 +195,18 @@ void SequenceHandler::update() {
     }
 
     if (inDelay == false) {
-        // digitalWrite(dcChannels[solenoidChannels[currentIndex] - 1], solenoidStates[currentIndex]);
-        channelArr[sequenceArr[currentIndex].channel - 1].setState(sequenceArr[currentIndex].state);
+        uint8_t chan = sequenceArr[currentIndex].channel;
+        if (chan >= 1 && chan <= NUM_DC_CHANNELS) {
+            channelArr[chan - 1].setState(sequenceArr[currentIndex].state);
+        }
 
-        Serial2.print("Firing idx=");
+        Serial2.print("SEQ_STEP:index=");
         Serial2.print(currentIndex);
-        Serial2.print(" chan=");
-        Serial2.print(sequenceArr[currentIndex].channel);
-        Serial2.print(" state=");
-        Serial2.println(sequenceArr[currentIndex].state);
-        Serial2.print(" duration=");
+        Serial2.print(",chan=");
+        Serial2.print(chan);
+        Serial2.print(",state=");
+        Serial2.print(sequenceArr[currentIndex].state ? "ON" : "OFF");
+        Serial2.print(",duration=");
         Serial2.println(sequenceArr[currentIndex].delay);
 
         sTimer = 0;
@@ -173,9 +219,13 @@ void SequenceHandler::update() {
 
         if (currentIndex >= numCommands) {
             currentIndex = 0;
+            inDelay = false;
             isActive = false;
-            // Serial.println("Sequence complete");
-            resetCommand();
+            Serial2.println("SEQ_EXEC_COMPLETE");
+            if (lastCommandValid) {
+                Serial2.print("SEQ_READY:");
+                Serial2.println(lastCommand);
+            }
         }
     }
 }
