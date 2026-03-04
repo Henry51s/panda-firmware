@@ -58,6 +58,10 @@ void setup() {
   // put your setup code here, to run once:
   Serial2.begin(SERIAL_BAUD_RATE); //RS-485 bus 1
   Serial2.setTimeout(100);
+  
+  // Teensy has a preset RX buffer limit of 64 bytes, this was causing our autosequencer issues
+  static uint8_t rxBuf[RX_BUF_SIZE];
+  Serial2.addMemoryForRead(rxBuf, RX_BUF_SIZE);
 
   static uint8_t txBuf[TX_BUF_SIZE]; // Literally downloading more memory
   Serial2.addMemoryForWrite(txBuf, TX_BUF_SIZE);
